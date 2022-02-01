@@ -4,12 +4,10 @@ import os, signal, sys
 import argparse
 import xlsxwriter
 
-
 def get_vulners_from_xml(xml_content):
 	vulnerabilities = dict()
 	vulner_id=""
 
-	#Devices=[]
 	Device=""
 	FoundID=""
 	DID=""
@@ -17,15 +15,10 @@ def get_vulners_from_xml(xml_content):
 
 	p = etree.XMLParser(huge_tree=True)
 	root = etree.fromstring(text=xml_content, parser=p)
-	#print(root)
 	for block in root:
-		#print(block.tag)
 		if block.tag == "Vulnerabilities":
 			vulner_struct = dict()
 			for report_host in block:
-				#print(report_host.tag)
-				#value = report_host.text
-				#print(value)
 				if report_host.tag =="Title":
 					vulner_struct['Title'] = report_host.text
 					vulner_id = vulner_struct['Title']
@@ -40,23 +33,37 @@ def get_vulners_from_xml(xml_content):
 				if report_host.tag=="CommonVulnerabilitiesAndExposureReferences":
 					vulner_struct['CommonVulnerabilitiesAndExposureReferences'] = report_host.text
 				if report_host.tag=="CommonVulnerabilityScoringSystemReferences":
+					
+					#if vuln score in brackets (3.0) 
+
+
+
 					vulner_struct['CommonVulnerabilityScoringSystemReferences'] = report_host.text
 
-					if int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))>=9 and int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))<=10:
-						vulner_struct['BTDef']="A"
-					if int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))>=7 and int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))<=8.9:
-						vulner_struct['BTDef']="B"
-					if int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))>=4 and int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))<=6.9:
-						vulner_struct['BTDef']="C"
-					if int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))>=0 and int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))<=3.9:
-						vulner_struct['BTDef']="D"
+					x = report_host.text
+					y = x.isnumeric()
+					print(y)
 
+
+
+					try:
+						#Convert CVSS Score to BT Scoring System
+						if int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))>=9 and int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))<=10:
+							vulner_struct['BTDef']="A"
+						if int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))>=7 and int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))<=8.9:
+							vulner_struct['BTDef']="B"
+						if int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))>=4 and int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))<=6.9:
+							vulner_struct['BTDef']="C"
+						if int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))>=0 and int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))<=3.9:
+							vulner_struct['BTDef']="D"
+					except:
+						print("[!]Something went wrong processing the CVE scores, check there is no extra text and they're only numbers e.g. 4.6")
+						sys.exit()
 
 				if report_host.tag=="FoundVulnerabilityID":
 					vulner_struct['FoundVulnerabilityID'] = report_host.text
 					Devices=[]
 					for rblock in root:
-					#print(rblock.tag)
 						if rblock.tag == "VulnerabilityDevices":
 							for stuff in rblock:
 								if(stuff.tag)=="FoundVulnerabilityID":
@@ -66,12 +73,10 @@ def get_vulners_from_xml(xml_content):
 
 						if FoundID==vulner_struct['FoundVulnerabilityID']:
 							for sblock in root:
-							#print(rblock.tag)
 								if sblock.tag == "Devices":
 
 									for sstuff in sblock:
 										if(sstuff.tag)=="DeviceID":
-										
 											DID=sstuff.text
 
 										if(sstuff.tag)=="Instance":
@@ -80,19 +85,15 @@ def get_vulners_from_xml(xml_content):
 									if DID==Device:
 										Devices.append(IP)
 
-								
 								Devices=list(OrderedDict.fromkeys(Devices))
 								listToStr = ' '.join(map(str, Devices))
 
 								vulner_struct['Devices']=listToStr
-
                 
 			if not vulner_id in vulnerabilities:
 				vulnerabilities[vulner_id] = vulner_struct
 
-
 	return(vulnerabilities)
-
 
 def banner():
 	print("""                               
@@ -121,14 +122,14 @@ Version 0.1a
 
 def main():
 
-	#Show Banner
+	#Show Banner (it's not a legit tool without an ascii banner)
 	banner()
 
 	#Get command line args
 	p = argparse.ArgumentParser("./caver -f file.repdef ", formatter_class=lambda prog: argparse.HelpFormatter(prog,max_help_position=20,width=150),description = "Convert Repdef to CAVE")
 
 	p.add_argument("-f", "--filename", dest="filename", help="Enter name of nessus file to parse")
-	p.add_argument("-out", "--out", dest="out", help="Enter name of file to save as e.g. BT.xlsx (if no output filename is specified saves as caver.xlsx in cwd")
+	p.add_argument("-out", "--out", dest="out", help="Enter name of file to save as e.g. somthingcool.xlsx (if no output filename is specified saves as caver.xlsx in cwd")
 
 	args = p.parse_args()
 
@@ -139,10 +140,8 @@ def main():
 		xml_content = f.read()
 		f.close()
 
-		#Call xml vulnerability parse function
+		#Call xml repdef parse function
 		vulners = get_vulners_from_xml(xml_content)
-
-		#print(vulners)
 
 		#Setup devices list variable
 		devices=[]
@@ -169,7 +168,8 @@ def main():
 		worksheet.write(row, col+5,"Thread Level Category",bold)
 
 		row=1
-		#Cycle through all vulnerabilities
+		
+		#Cycle through all vulnerabilities and write the relevant issues to xlsx
 		for vulner_id in vulners:
 			try:
 				worksheet.write(row, col,(vulners[vulner_id]["Title"]))
@@ -191,7 +191,6 @@ def main():
 def signal_handler(signal, frame):
 	print ("\nCtrl+C pressed.. exiting...")
 	sys.exit()
-
 
 #Loads up main
 if __name__ == '__main__':
