@@ -13,12 +13,37 @@ def get_vulners_from_xml(xml_content):
 	DID=""
 	IP=""
 
+	CVScore=""
+
+	btid=""
+	crid=""
+
 	p = etree.XMLParser(huge_tree=True)
 	root = etree.fromstring(text=xml_content, parser=p)
+	
+	#Try and pull the client id's needed for the report.
+	for header in root:
+		if header.tag=="Header":
+			for block in header:
+				if block.tag=="Subtitle":
+					btid=block.text
+					if btid.find("PT"):
+						btid=(btid[btid.find("PT"):btid.find(" ",btid.find("PT"))])
+						#print(btid)
+					else:
+						btid=""
+
+				if block.tag=="ClientReference":
+					crid=block.text
+					#print(crid)
+
 	for block in root:
 		if block.tag == "Vulnerabilities":
 			vulner_struct = dict()
 			for report_host in block:
+				vulner_struct['BTJobCode'] = btid
+				vulner_struct['IRMJobCode'] = crid
+
 				if report_host.tag =="Title":
 					vulner_struct['Title'] = report_host.text
 					vulner_id = vulner_struct['Title']
@@ -33,33 +58,53 @@ def get_vulners_from_xml(xml_content):
 				if report_host.tag=="CommonVulnerabilitiesAndExposureReferences":
 					vulner_struct['CommonVulnerabilitiesAndExposureReferences'] = report_host.text
 				if report_host.tag=="CommonVulnerabilityScoringSystemReferences":
-					
-					#if vuln score in brackets (3.0) 
-
-
-
 					vulner_struct['CommonVulnerabilityScoringSystemReferences'] = report_host.text
-
-					x = report_host.text
-					y = x.isnumeric()
-					print(y)
-
-
-
+				
+					#Check to see if the CVSS score is a float/number
 					try:
-						#Convert CVSS Score to BT Scoring System
-						if int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))>=9 and int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))<=10:
-							vulner_struct['BTDef']="A"
-						if int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))>=7 and int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))<=8.9:
-							vulner_struct['BTDef']="B"
-						if int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))>=4 and int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))<=6.9:
-							vulner_struct['BTDef']="C"
-						if int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))>=0 and int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))<=3.9:
-							vulner_struct['BTDef']="D"
+						x = int(float(vulner_struct['CommonVulnerabilityScoringSystemReferences']))
+						y = isinstance(x, (int, float))
+						
+						CVScore=report_host.text
+						#If we're good set to true
+						floater=True
 					except:
-						print("[!]Something went wrong processing the CVE scores, check there is no extra text and they're only numbers e.g. 4.6")
-						sys.exit()
+						floater=False
 
+					#If we've not passed the cirst validation check to see whether the number is between () e.g. (4.5) then some text
+					if floater==False:
+						a=str(vulner_struct['CommonVulnerabilityScoringSystemReferences'])
+						b=a[a.find("(")+1:a.find(")")]
+						#print(b)
+						try:
+							x = int(float(b))
+							y = isinstance(x, (int, float))
+						#	print(y)
+							CVScore=b
+							#If the number between () then set to true
+							floater=True
+						except:
+							floater=False
+
+					#If we're good here, convert the numbers to the other scoring system
+					if floater==True:
+						try:
+							#Convert CVSS Score to BT Scoring System
+							if int(float(CVScore))>=9 and int(float(CVScore))<=10:
+								vulner_struct['BTDef']="A"
+							if int(float(CVScore))>=7 and int(float(CVScore))<=8.9:
+								vulner_struct['BTDef']="B"
+							if int(float(CVScore))>=4 and int(float(CVScore))<=6.9:
+								vulner_struct['BTDef']="C"
+							if int(float(CVScore))>=0 and int(float(CVScore))<=3.9:
+								vulner_struct['BTDef']="D"
+						except:
+							print("[!]Something went wrong processing the CVE scores...")
+					#Set the value to Z to indicate something wrong
+					else:
+						vulner_struct['BTDef']="Z"
+						print("[!]Unable to process CVSS score - "+a+" - please either use number on its own e.g. 3.9 or if using score and vector, prefix score in brackets e.g. (3.9) AV:A/AC:H/PR:L/UI:R/S:U/C:N/I:L/A:H")
+					
 				if report_host.tag=="FoundVulnerabilityID":
 					vulner_struct['FoundVulnerabilityID'] = report_host.text
 					Devices=[]
@@ -112,8 +157,8 @@ def banner():
  '----------------'  '----------------'  '----------------'  '----------------'  '----------------'              
 
   
-Because RWT Doesn't do CAVE Reports and they not quick to do manually :-p
-Version 0.1a
+Because RWT Doesn't do CAVE Reports and they're not quick to do manually :-p
+Version 0.1ac
 @rd_pentest
 
 
