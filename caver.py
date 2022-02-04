@@ -71,7 +71,7 @@ def get_vulners_from_xml(xml_content):
 					except:
 						floater=False
 
-					#If we've not passed the cirst validation check to see whether the number is between () e.g. (4.5) then some text
+					#If we've not passed the first validation check to see whether the number is between () e.g. (4.5) then some text
 					if floater==False:
 						a=str(vulner_struct['CommonVulnerabilityScoringSystemReferences'])
 						b=a[a.find("(")+1:a.find(")")]
@@ -79,12 +79,28 @@ def get_vulners_from_xml(xml_content):
 						try:
 							x = int(float(b))
 							y = isinstance(x, (int, float))
-						#	print(y)
 							CVScore=b
 							#If the number between () then set to true
 							floater=True
 						except:
 							floater=False
+
+					#If we've not passed the 2nd validation check - IRM RWT CVS Tool
+					#https://nvd.nist.gov/vuln-metrics/cvss/v3-calculator?vector=AV:A/AC:H/PR:H/UI:R/S:U/C:N/I:H/A:H&version=3.1 5.6 - AV:A/AC:H/PR:H/UI:R/S:U/C:N/I:H/A:H
+					if floater==False:
+						a=str(vulner_struct['CommonVulnerabilityScoringSystemReferences'])
+						if a.find("https://nvd.nist.gov/vuln-metrics/cvss/v3-calculator?vector=")==0:
+							b=a[a.find("&version=3.1")+13:a.find(" - ",int((a.find("&version=3.1")+13)))]
+							#print(b)
+							try:
+								x = int(float(b))
+								y = isinstance(x, (int, float))
+								CVScore=b
+								#If the number between () then set to true
+								floater=True
+							except:
+								floater=False
+
 
 					#If we're good here, convert the numbers to the other scoring system
 					if floater==True:
@@ -158,7 +174,7 @@ def banner():
 
   
 Because RWT Doesn't do CAVE Reports and they're not quick to do manually :-p
-Version 0.1ac
+Version 0.1ad
 @rd_pentest
 
 
